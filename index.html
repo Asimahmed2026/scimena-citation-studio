@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SciMENA Citation Studio — search, insert and format academic citations." />
+  <title>SciMENA Citation Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div>
+          <div class="brand"><span class="sci">sci</span><span class="mena">MENA</span></div>
+          <div class="product-name">Citation Studio</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="newProjectBtn" class="btn btn-ghost">New project</button>
+        <button id="saveBtn" class="btn btn-secondary">Save</button>
+        <button id="exportBtn" class="btn btn-primary">Export manuscript</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="sidebar">
+        <section class="panel search-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">REFERENCE SEARCH</p>
+              <h2>Find a source</h2>
+            </div>
+            <span class="status-dot" title="Uses Crossref and PubMed"></span>
+          </div>
+
+          <label class="field-label" for="searchInput">DOI, PMID, title, or author</label>
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/></svg>
+            <input id="searchInput" type="search" placeholder="e.g. 10.1000/xyz or article title" autocomplete="off" />
+            <button id="clearSearchBtn" class="icon-btn hidden" aria-label="Clear search">×</button>
+          </div>
+
+          <div class="source-row">
+            <label><input type="radio" name="source" value="auto" checked /> Auto</label>
+            <label><input type="radio" name="source" value="crossref" /> Crossref</label>
+            <label><input type="radio" name="source" value="pubmed" /> PubMed</label>
+          </div>
+
+          <button id="searchBtn" class="btn btn-primary btn-block">Search references</button>
+          <button id="demoBtn" class="btn btn-ghost btn-block compact">Load demo references</button>
+
+          <div id="searchMessage" class="message muted">Search results will appear here.</div>
+          <div id="searchResults" class="result-list" aria-live="polite"></div>
+        </section>
+
+        <section class="panel library-panel">
+          <div class="panel-heading inline">
+            <div>
+              <p class="eyebrow">PROJECT LIBRARY</p>
+              <h2>References <span id="libraryCount" class="count-badge">0</span></h2>
+            </div>
+            <button id="manualBtn" class="btn btn-ghost compact">+ Manual</button>
+          </div>
+          <div class="library-tools">
+            <input id="libraryFilter" type="search" placeholder="Filter library" />
+            <select id="citationStyle" aria-label="Citation style">
+              <option value="vancouver">Vancouver</option>
+              <option value="apa">APA 7</option>
+            </select>
+          </div>
+          <div id="libraryEmpty" class="empty-state">
+            <div class="empty-icon">R</div>
+            <strong>No references yet</strong>
+            <p>Add references from Crossref, PubMed, or manually.</p>
+          </div>
+          <div id="libraryList" class="library-list"></div>
+        </section>
+      </aside>
+
+      <section class="editor-area">
+        <section class="panel editor-panel">
+          <div class="editor-header">
+            <div class="project-fields">
+              <input id="projectTitle" class="project-title" value="Untitled Research Project" aria-label="Project title" />
+              <div class="project-meta">
+                <span id="saveStatus">Saved locally</span>
+                <span>•</span>
+                <span id="wordCount">0 words</span>
+                <span>•</span>
+                <span id="citationCount">0 citations</span>
+              </div>
+            </div>
+            <div class="editor-actions">
+              <button id="insertCitationBtn" class="btn btn-secondary">Insert citation</button>
+              <button id="auditBtn" class="btn btn-ghost">Citation audit</button>
+            </div>
+          </div>
+
+          <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
+            <button data-wrap="**" title="Bold"><strong>B</strong></button>
+            <button data-wrap="*" title="Italic"><em>I</em></button>
+            <span class="toolbar-separator"></span>
+            <button data-prefix="# " title="Heading 1">H1</button>
+            <button data-prefix="## " title="Heading 2">H2</button>
+            <button data-prefix="- " title="Bullet list">• List</button>
+            <span class="toolbar-separator"></span>
+            <button id="undoBtn" title="Undo">↶</button>
+            <button id="redoBtn" title="Redo">↷</button>
+          </div>
+
+          <textarea id="manuscript" spellcheck="true" placeholder="Start writing your manuscript here…\n\nPlace the cursor where you want the citation, select one or more references from the library, then click Insert citation."></textarea>
+          <div class="token-hint">Internal citation tokens such as <code>{{cite:abc123}}</code> are automatically converted in the preview and export.</div>
+        </section>
+
+        <section class="panel preview-panel">
+          <div class="preview-header">
+            <div>
+              <p class="eyebrow">LIVE OUTPUT</p>
+              <h2>Formatted manuscript</h2>
+            </div>
+            <div class="view-tabs" role="tablist">
+              <button class="tab active" data-view="preview">Preview</button>
+              <button class="tab" data-view="references">References</button>
+              <button class="tab" data-view="audit">Audit</button>
+            </div>
+          </div>
+          <article id="previewContent" class="paper"></article>
+          <section id="referencesContent" class="paper hidden"></section>
+          <section id="auditContent" class="paper hidden"></section>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="citationModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="citationModalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">INSERT CITATION</p>
+          <h2 id="citationModalTitle">Choose references</h2>
+        </div>
+        <button class="modal-close" data-close="citationModal" aria-label="Close">×</button>
+      </div>
+      <input id="modalFilter" type="search" placeholder="Search your project library" />
+      <div id="citationPicker" class="citation-picker"></div>
+      <div class="modal-footer">
+        <span id="selectedCount">0 selected</span>
+        <div>
+          <button class="btn btn-ghost" data-close="citationModal">Cancel</button>
+          <button id="confirmInsertBtn" class="btn btn-primary">Insert selected</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="manualModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="manualModalTitle">
+    <div class="modal-card form-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">MANUAL ENTRY</p>
+          <h2 id="manualModalTitle">Add a reference</h2>
+        </div>
+        <button class="modal-close" data-close="manualModal" aria-label="Close">×</button>
+      </div>
+      <form id="manualForm" class="manual-form">
+        <label>Article title *<input name="title" required /></label>
+        <label>Authors <input name="authors" placeholder="Ahmed A; Osman B; Ali C" /></label>
+        <div class="form-grid">
+          <label>Year <input name="year" inputmode="numeric" /></label>
+          <label>Journal <input name="journal" /></label>
+          <label>Volume <input name="volume" /></label>
+          <label>Issue <input name="issue" /></label>
+          <label>Pages <input name="pages" /></label>
+          <label>PMID <input name="pmid" /></label>
+        </div>
+        <label>DOI <input name="doi" placeholder="10.xxxx/xxxxx" /></label>
+        <div class="modal-footer">
+          <span>Fields can be edited later.</span>
+          <div>
+            <button type="button" class="btn btn-ghost" data-close="manualModal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Add reference</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
