@@ -15,6 +15,9 @@
     undoStack: [],
     redoStack: [],
     lastSaved: null,
+    aiSelection: null,
+    aiResult: null,
+    aiSelected: new Map(),
   };
 
   const el = (id) => document.getElementById(id);
@@ -30,6 +33,10 @@
     manualModal: el('manualModal'), manualForm: el('manualForm'), manualBtn: el('manualBtn'),
     saveBtn: el('saveBtn'), saveStatus: el('saveStatus'), newProjectBtn: el('newProjectBtn'), exportBtn: el('exportBtn'),
     auditBtn: el('auditBtn'), toast: el('toast'), undoBtn: el('undoBtn'), redoBtn: el('redoBtn'),
+    aiCiteBtn: el('aiCiteBtn'), aiCiteModal: el('aiCiteModal'), aiOriginalText: el('aiOriginalText'),
+    aiAnalyzeBtn: el('aiAnalyzeBtn'), aiStatus: el('aiStatus'), aiResults: el('aiResults'),
+    aiPolishedText: el('aiPolishedText'), aiClaims: el('aiClaims'), aiSelectedCount: el('aiSelectedCount'),
+    aiApplyTextBtn: el('aiApplyTextBtn'), aiApplyCitationsBtn: el('aiApplyCitationsBtn'),
   };
 
   function uid(prefix = 'ref') {
@@ -44,6 +51,10 @@
     const div = document.createElement('div');
     div.innerHTML = value;
     return (div.textContent || div.innerText || '').trim();
+  }
+
+  function escapeRegExp(value = '') {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   function normalizeDoi(value = '') {
@@ -410,12 +421,15 @@
   }
 
   function renderSearchResults(results) {
-    els.searchResults.innerHTML = results.map((ref, index) => `<article class="result-card" data-index="${index}">
-      <div class="result-source"><span class="source-tag">${escapeHtml(ref.source)}</span><span class="result-meta">${escapeHtml(ref.year || 'n.d.')}</span></div>
-      <div class="result-title">${escapeHtml(ref.title)}</div>
-      <div class="result-meta">${escapeHtml(authorDisplay(ref))}<br>${escapeHtml(ref.journal || '')}${ref.doi ? `<br>DOI: ${escapeHtml(ref.doi)}` : ref.pmid ? `<br>PMID: ${escapeHtml(ref.pmid)}` : ''}</div>
-      <div class="result-actions"><button class="btn btn-secondary" data-add="${index}">Add to library</button></div>
-    </article>`).join('');
+    els.searchResults.innerHTML = results.map((ref, index) => {
+      const existing = isDuplicate(ref);
+      return `<article class="result-card" data-index="${index}">
+        <div class="result-source"><span class="source-tag">${escapeHtml(ref.source)}</span><span class="result-meta">${escapeHtml(ref.year || 'n.d.')}</span></div>
+        <div class="result-title">${escapeHtml(ref.title)}</div>
+        <div class="result-meta">${escapeHtml(authorDisplay(ref))}<br>${escapeHtml(ref.journal || '')}${ref.doi ? `<br>DOI: ${escapeHtml(ref.doi)}` : ref.pmid ? `<br>PMID: ${escapeHtml(ref.pmid)}` : ''}</div>
+        <div class="result-actions"><button class="btn btn-secondary" data-add="${index}" ${existing ? 'disabled' : ''}>${existing ? 'In library' : 'Add to library'}</button></div>
+      </article>`;
+    }).join('');
     els.searchResults._refs = results;
   }
 
@@ -427,11 +441,21 @@
     });
   }
 
+  function ensureReference(ref) {
+    const duplicate = isDuplicate(ref);
+    if (duplicate) return duplicate;
+    const stored = { ...ref, id: ref.id || uid() };
+    state.references.push(stored);
+    return stored;
+  }
+
   function addReference(ref) {
+    if (!ref) return;
     const duplicate = isDuplicate(ref);
     if (duplicate) return showToast('This reference is already in the library.');
-    state.references.push({ ...ref, id: ref.id || uid() });
+    ensureReference(ref);
     renderAll();
+    if (els.searchResults._refs) renderSearchResults(els.searchResults._refs);
     save(false);
     showToast('Reference added.');
   }
@@ -457,6 +481,186 @@
     renderAll();
     save(false);
     showToast('Citation inserted and renumbered.');
+  }
+
+  function selectedAiMode() {
+    return document.querySelector('input[name="aiMode"]:checked')?.value || 'polish';
+  }
+
+  function getSelectionOrParagraph() {
+    const text = state.manuscript;
+    let start = els.manuscript.selectionStart ?? 0;
+    let end = els.manuscript.selectionEnd ?? start;
+    if (start !== end && text.slice(start, end).trim()) {
+      return { start, end, text: text.slice(start, end) };
+    }
+    if (!text.trim()) return null;
+    const cursor = start;
+    const previousBreak = text.lastIndexOf('\n\n', Math.max(0, cursor - 1));
+    const nextBreak = text.indexOf('\n\n', cursor);
+    start = previousBreak === -1 ? 0 : previousBreak + 2;
+    end = nextBreak === -1 ? text.length : nextBreak;
+    let selected = text.slice(start, end);
+    if (!selected.trim()) {
+      start = 0;
+      end = text.length;
+      selected = text;
+    }
+    return { start, end, text: selected };
+  }
+
+  function openAiCiteModal() {
+    const selection = getSelectionOrParagraph();
+    if (!selection) return showToast('Write or select a sentence first.');
+    if (selection.text.trim().length < 20) return showToast('Select a complete scientific sentence or paragraph.');
+    if (selection.text.length > 6000) return showToast('Select no more than 6,000 characters at a time.');
+    state.aiSelection = selection;
+    state.aiResult = null;
+    state.aiSelected = new Map();
+    els.aiOriginalText.value = selection.text.trim();
+    els.aiPolishedText.value = '';
+    els.aiClaims.innerHTML = '';
+    els.aiResults.classList.add('hidden');
+    els.aiStatus.textContent = 'Ready to analyze the selected text.';
+    els.aiApplyTextBtn.disabled = true;
+    els.aiApplyCitationsBtn.disabled = true;
+    els.aiSelectedCount.textContent = '0 sources selected';
+    els.aiCiteModal.classList.remove('hidden');
+  }
+
+  function setAiBusy(active, message = '') {
+    els.aiAnalyzeBtn.disabled = active;
+    els.aiAnalyzeBtn.textContent = active ? 'Analyzing and searching…' : 'Analyze claims and search sources';
+    if (message) els.aiStatus.textContent = message;
+  }
+
+  async function performAiAnalysis() {
+    const text = els.aiOriginalText.value.trim();
+    if (text.length < 20) return showToast('Select a complete scientific sentence or paragraph.');
+    setAiBusy(true, 'OpenAI is identifying claims, then PubMed and Crossref are searched for real records…');
+    els.aiResults.classList.add('hidden');
+    try {
+      const response = await fetch('/.netlify/functions/ai-citations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ text, mode: selectedAiMode() })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = data.detail || data.error || `HTTP ${response.status}`;
+        throw new Error(detail);
+      }
+      if (!data.polished_text || !Array.isArray(data.claims)) throw new Error('The AI response was incomplete.');
+      state.aiResult = data;
+      renderAiResults();
+      els.aiStatus.textContent = `${data.claims.length} claim${data.claims.length === 1 ? '' : 's'} analyzed using ${data.model || 'OpenAI'}. Review the proposed sources before applying.`;
+      els.aiResults.classList.remove('hidden');
+      els.aiApplyTextBtn.disabled = false;
+    } catch (error) {
+      console.error(error);
+      const message = String(error.message || error);
+      els.aiStatus.textContent = message.includes('OPENAI_API_KEY')
+        ? 'OpenAI is not configured yet. Add OPENAI_API_KEY in Netlify → Site configuration → Environment variables, then redeploy.'
+        : `AI citation search failed: ${message}`;
+      showToast('AI citation search could not be completed.');
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function candidateKey(claimId, candidateId) {
+    return `${claimId}::${candidateId}`;
+  }
+
+  function renderAiResults() {
+    const result = state.aiResult;
+    if (!result) return;
+    els.aiPolishedText.value = result.polished_text || els.aiOriginalText.value;
+    state.aiSelected = new Map();
+    const candidateMap = new Map();
+
+    els.aiClaims.innerHTML = result.claims.map((claim, claimIndex) => {
+      const candidates = Array.isArray(claim.candidates) ? claim.candidates : [];
+      const suggested = candidates.find(c => c.relevance === 'strong') || candidates.find(c => c.relevance === 'moderate');
+      if (suggested) state.aiSelected.set(claim.id, new Set([suggested.candidate_id]));
+      candidates.forEach(candidate => candidateMap.set(candidateKey(claim.id, candidate.candidate_id), candidate));
+      const candidateHtml = candidates.length ? candidates.map(candidate => {
+        const selected = state.aiSelected.get(claim.id)?.has(candidate.candidate_id);
+        const href = candidate.doi ? `https://doi.org/${normalizeDoi(candidate.doi)}` : candidate.url || (candidate.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${candidate.pmid}/` : '');
+        return `<label class="ai-candidate">
+          <input type="checkbox" data-ai-claim="${escapeHtml(claim.id)}" data-ai-candidate="${escapeHtml(candidate.candidate_id)}" ${selected ? 'checked' : ''} />
+          <span>
+            <span class="ai-candidate-title">${escapeHtml(candidate.title || 'Untitled')}</span>
+            <span class="ai-candidate-meta"><span class="ai-badge ${escapeHtml(candidate.relevance || 'weak')}">${escapeHtml(candidate.relevance || 'weak')}</span>${escapeHtml(candidate.source || '')} · ${escapeHtml(firstAuthor(candidate))} · ${escapeHtml(candidate.year || 'n.d.')}<br>${escapeHtml(candidate.journal || '')}${candidate.doi ? `<br>DOI: ${escapeHtml(candidate.doi)}` : candidate.pmid ? `<br>PMID: ${escapeHtml(candidate.pmid)}` : ''}</span>
+            ${candidate.rationale ? `<span class="ai-candidate-rationale">${escapeHtml(candidate.rationale)}</span>` : ''}
+            ${href ? `<a class="ai-open-link" href="${escapeHtml(href)}" target="_blank" rel="noopener">Open source record ↗</a>` : ''}
+          </span>
+        </label>`;
+      }).join('') : '<div class="ai-empty">No sufficiently relevant records were found for this claim. Try a shorter or more specific statement.</div>';
+      return `<section class="ai-claim">
+        <div class="ai-claim-head">
+          <div class="ai-claim-title"><strong>${claimIndex + 1}. ${escapeHtml(claim.claim)}</strong><span class="ai-claim-marker">${escapeHtml(claim.marker || `[[${claim.id}]]`)}</span></div>
+          <div class="ai-query">Search: ${escapeHtml(claim.search_query || '')}</div>
+        </div>
+        <div class="ai-candidates">${candidateHtml}</div>
+      </section>`;
+    }).join('');
+    els.aiClaims._candidateMap = candidateMap;
+    updateAiSelectionCount();
+  }
+
+  function updateAiSelectionCount() {
+    const count = [...state.aiSelected.values()].reduce((sum, ids) => sum + ids.size, 0);
+    els.aiSelectedCount.textContent = `${count} source${count === 1 ? '' : 's'} selected`;
+    els.aiApplyCitationsBtn.disabled = !state.aiResult || count === 0;
+  }
+
+  function applyAiResult(withCitations) {
+    if (!state.aiResult || !state.aiSelection) return;
+    let replacement = els.aiPolishedText.value.trim();
+    const candidateMap = els.aiClaims._candidateMap || new Map();
+    let insertedSources = 0;
+
+    for (const claim of state.aiResult.claims) {
+      const marker = claim.marker || `[[${claim.id}]]`;
+      let citationText = '';
+      if (withCitations) {
+        const chosen = [...(state.aiSelected.get(claim.id) || [])]
+          .map(candidateId => candidateMap.get(candidateKey(claim.id, candidateId)))
+          .filter(Boolean);
+        const refs = chosen.map(candidate => ensureReference({
+          ...candidate,
+          id: undefined,
+          raw: undefined,
+          sourceId: candidate.source_id || candidate.pmid || candidate.doi || candidate.candidate_id,
+        }));
+        const ids = [...new Set(refs.map(ref => ref.id))];
+        if (ids.length) {
+          citationText = ` {{cite:${ids.join('|')}}}`;
+          insertedSources += ids.length;
+        }
+      }
+      replacement = replacement.replace(new RegExp(escapeRegExp(marker), 'g'), citationText);
+    }
+    replacement = replacement
+      .replace(/\[\[C\d+\]\]/gi, '')
+      .replace(/[ \t]+([,.;:!?])/g, '$1')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+
+    const { start, end, text: originalText } = state.aiSelection;
+    if (state.manuscript.slice(start, end) !== originalText && !confirm('The manuscript changed after AI analysis. Replace the original selected range anyway?')) return;
+    snapshot();
+    state.manuscript = state.manuscript.slice(0, start) + replacement + state.manuscript.slice(end);
+    els.manuscript.value = state.manuscript;
+    const cursor = start + replacement.length;
+    els.manuscript.focus();
+    els.manuscript.setSelectionRange(cursor, cursor);
+    els.aiCiteModal.classList.add('hidden');
+    renderAll();
+    if (els.searchResults._refs) renderSearchResults(els.searchResults._refs);
+    save(false);
+    showToast(withCitations ? `AI text applied with ${insertedSources} selected source${insertedSources === 1 ? '' : 's'}.` : 'AI text applied without citations.');
   }
 
   function snapshot() {
@@ -611,6 +815,27 @@
     document.querySelectorAll('.modal').forEach(modal => modal.addEventListener('click', e => { if(e.target===modal) modal.classList.add('hidden'); }));
     document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchView(tab.dataset.view)));
     els.auditBtn.addEventListener('click', () => switchView('audit'));
+    els.aiCiteBtn.addEventListener('click', openAiCiteModal);
+    els.aiAnalyzeBtn.addEventListener('click', performAiAnalysis);
+    els.aiClaims.addEventListener('change', e => {
+      const input = e.target.closest('input[data-ai-claim][data-ai-candidate]');
+      if (!input) return;
+      const claimId = input.dataset.aiClaim;
+      const candidateId = input.dataset.aiCandidate;
+      const selected = state.aiSelected.get(claimId) || new Set();
+      input.checked ? selected.add(candidateId) : selected.delete(candidateId);
+      state.aiSelected.set(claimId, selected);
+      updateAiSelectionCount();
+    });
+    els.aiClaims.addEventListener('click', e => {
+      const link = e.target.closest('.ai-open-link');
+      if (!link) return;
+      e.preventDefault();
+      e.stopPropagation();
+      window.open(link.href, '_blank', 'noopener');
+    });
+    els.aiApplyTextBtn.addEventListener('click', () => applyAiResult(false));
+    els.aiApplyCitationsBtn.addEventListener('click', () => applyAiResult(true));
     els.undoBtn.addEventListener('click', undo); els.redoBtn.addEventListener('click', redo);
     document.querySelectorAll('.toolbar [data-wrap]').forEach(btn => btn.addEventListener('click', () => {
       const wrap=btn.dataset.wrap, start=els.manuscript.selectionStart, end=els.manuscript.selectionEnd; snapshot();

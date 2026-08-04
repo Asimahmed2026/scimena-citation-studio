@@ -98,6 +98,7 @@
               </div>
             </div>
             <div class="editor-actions">
+              <button id="aiCiteBtn" class="btn btn-ai">AI Polish &amp; Cite</button>
               <button id="insertCitationBtn" class="btn btn-secondary">Insert citation</button>
               <button id="auditBtn" class="btn btn-ghost">Citation audit</button>
             </div>
@@ -115,7 +116,7 @@
             <button id="redoBtn" title="Redo">↷</button>
           </div>
 
-          <textarea id="manuscript" spellcheck="true" placeholder="Start writing your manuscript here…\n\nPlace the cursor where you want the citation, select one or more references from the library, then click Insert citation."></textarea>
+          <textarea id="manuscript" spellcheck="true" placeholder="Start writing your manuscript here…&#10;&#10;Place the cursor where you want the citation, select one or more references from the library, then click Insert citation."></textarea>
           <div class="token-hint">Internal citation tokens such as <code>{{cite:abc123}}</code> are automatically converted in the preview and export.</div>
         </section>
 
@@ -189,6 +190,62 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="aiCiteModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aiCiteModalTitle">
+    <div class="modal-card ai-modal-card">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">AI-ASSISTED CITATION</p>
+          <h2 id="aiCiteModalTitle">Polish text and find evidence</h2>
+        </div>
+        <button class="modal-close" data-close="aiCiteModal" aria-label="Close">×</button>
+      </div>
+
+      <div class="ai-modal-body">
+        <div class="ai-intro">
+          <strong>Selected text</strong>
+          <span>OpenAI analyzes the claims; all suggested records are retrieved from PubMed or Crossref.</span>
+        </div>
+        <textarea id="aiOriginalText" class="ai-source-text" readonly></textarea>
+
+        <div class="ai-mode-row" role="radiogroup" aria-label="AI action">
+          <label><input type="radio" name="aiMode" value="polish" checked /> Polish wording and find citations</label>
+          <label><input type="radio" name="aiMode" value="find" /> Keep wording and find citations</label>
+        </div>
+
+        <button id="aiAnalyzeBtn" class="btn btn-primary btn-block">Analyze claims and search sources</button>
+        <div id="aiStatus" class="message muted">Select a sentence or paragraph in the editor, then analyze it.</div>
+
+        <section id="aiResults" class="ai-results hidden">
+          <div class="ai-polished-wrap">
+            <div class="ai-result-heading">
+              <div>
+                <p class="eyebrow">PROPOSED TEXT</p>
+                <h3>Polished text with claim markers</h3>
+              </div>
+              <span class="ai-marker-help">Markers are replaced by citations when applied.</span>
+            </div>
+            <textarea id="aiPolishedText" class="ai-polished-text"></textarea>
+          </div>
+
+          <div id="aiClaims" class="ai-claims"></div>
+
+          <div class="ai-warning">
+            AI relevance is a screening aid, not verification. Read the abstract or full article before citing it.
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-footer ai-footer">
+        <span id="aiSelectedCount">0 sources selected</span>
+        <div>
+          <button class="btn btn-ghost" data-close="aiCiteModal">Cancel</button>
+          <button id="aiApplyTextBtn" class="btn btn-secondary" disabled>Use text only</button>
+          <button id="aiApplyCitationsBtn" class="btn btn-primary" disabled>Apply text &amp; citations</button>
+        </div>
+      </div>
     </div>
   </div>
 

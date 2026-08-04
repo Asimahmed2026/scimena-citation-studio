@@ -1,0 +1,20 @@
+SciMENA Citation Studio — AI v2 update
+
+1. In GitHub, open the scimena-citation-studio repository.
+2. Upload all files and folders from this package and replace files with the same names.
+3. Commit the changes.
+4. In Netlify, open the site and go to:
+   Site configuration > Environment variables
+5. Add:
+   OPENAI_API_KEY = your OpenAI API key
+6. Optional:
+   OPENAI_MODEL = gpt-5.6-luna
+7. Trigger a new deployment after adding the environment variable.
+
+How to test:
+- Write a scientific sentence or paragraph.
+- Select it, or place the cursor inside the paragraph.
+- Click AI Polish & Cite.
+- Click Analyze claims and search sources.
+- Review and select real PubMed/Crossref candidates.
+- Click Apply text & citations.
