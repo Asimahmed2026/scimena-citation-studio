@@ -122,7 +122,7 @@ async function analyzeClaims({ apiKey, model, text, mode }) {
 
   const instruction = mode === 'find'
     ? 'Preserve the user wording exactly except for adding claim markers.'
-    : 'Improve clarity, grammar, concision, and academic tone without changing meaning or adding new factual claims.';
+    : 'Substantially rewrite the text into clear, concise, publication-ready academic language. Improve scientific precision, flow, terminology, and sentence structure rather than merely correcting grammar. Remove repetition and vague phrasing while preserving the original meaning. Do not add unsupported facts, numerical estimates, causal claims, or time trends. If an asserted trend such as increasing prevalence is not explicitly established by the input, use a cautious evidence-neutral formulation.';
 
   const system = `You are a biomedical academic-writing assistant. ${instruction}
 Identify between 1 and ${MAX_CLAIMS} independently citable factual claims. Do not invent references, authors, journals, identifiers, statistics, or facts.

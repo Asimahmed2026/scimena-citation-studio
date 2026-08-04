@@ -1,17 +1,17 @@
-# SciMENA Citation Studio — AI Citation MVP v2
+# SciMENA Citation Studio — AI v3
 
-A standalone, Netlify-ready citation and reference manager prototype for the SciMENA / 10 Scholars research-writing application.
+A standalone, Netlify-ready citation manager prototype for the SciMENA / 10 Scholars research-writing application.
 
-## Core citation features
+## Included in this MVP
 
 - Search by DOI, PMID, article title, author, or keywords
 - Crossref and PubMed integration
 - Netlify Functions proxy fallback
 - Local project reference library
 - Automatic duplicate detection
-- Insert one or multiple citations at the cursor
+- Insert one or multiple citation tokens at the cursor
 - Automatic Vancouver renumbering by first appearance
-- Vancouver citation-range compression, for example `[3–6]`
+- Vancouver citation-range compression, e.g. `[3–6]`
 - APA 7 in-text and bibliography preview
 - Live formatted manuscript preview
 - Automatic references section
@@ -19,99 +19,60 @@ A standalone, Netlify-ready citation and reference manager prototype for the Sci
 - Manual reference entry
 - Local autosave using browser storage
 - Export formatted manuscript as HTML
-
-## AI Polish & Cite
-
-The **AI Polish & Cite** button works on selected text or, when nothing is selected, the paragraph containing the cursor.
-
-The workflow is:
-
-1. OpenAI improves the wording or preserves it, depending on the selected mode.
-2. OpenAI separates a long sentence or paragraph into independently citable claims.
-3. OpenAI creates an English scholarly search query for each claim.
-4. The Netlify Function searches real PubMed and Crossref records.
-5. Candidate references are screened for relevance using their title and available abstract metadata.
-6. The user reviews and selects the sources.
-7. The app adds the selected sources to the project library and inserts citation tokens at the relevant claim markers.
-8. Vancouver numbering and the reference list update automatically.
-
-The system never asks OpenAI to invent a reference. Suggested references are generated only from records retrieved from PubMed or Crossref. Users must still review the abstract or full article before citing it.
-
-## Required OpenAI setup
-
-The OpenAI API key must be stored in Netlify, not in `app.js`, GitHub, or the browser.
-
-1. Open the project in Netlify.
-2. Go to **Site configuration → Environment variables**.
-3. Add:
-
-```text
-Key: OPENAI_API_KEY
-Value: your OpenAI API key
-```
-
-4. Optional model setting:
-
-```text
-Key: OPENAI_MODEL
-Value: gpt-5.6-luna
-```
-
-5. Redeploy the site.
-
-`gpt-5.6-luna` is the default model because this workflow is structured, high-volume, and cost-sensitive. The model can be changed using `OPENAI_MODEL` without changing the code.
+- Responsive user interface
+- Five-stage AI progress bar with estimated percentage
+- Stronger publication-ready academic rewrite mode
+- Demo references for offline interface testing
 
 ## Deploy to Netlify
 
-1. Upload all files to the GitHub repository root.
+### Recommended: Git deployment
+
+1. Upload this folder to a GitHub repository.
 2. In Netlify, choose **Add new site → Import an existing project**.
-3. Select the GitHub repository.
-4. Netlify reads `netlify.toml` automatically.
+3. Select the repository.
+4. Netlify will detect `netlify.toml` automatically.
 5. No build command is required.
 6. Publish directory: `.`
-7. Functions directory: `netlify/functions`
-8. Add the environment variable described above.
-9. Deploy or trigger a new deployment.
+7. Deploy.
 
-## Updating an existing GitHub deployment
+The Git deployment method activates the included Crossref and PubMed proxy functions.
 
-Upload and replace these files:
+### Static drag-and-drop test
 
-- `index.html`
-- `styles.css`
-- `app.js`
-- `README.md`
-- `netlify/functions/ai-citations.mjs`
+You may drag the folder into Netlify Drop. The interface will work and will first attempt direct calls to Crossref and PubMed. Netlify Functions are not included in a simple static drop, so Git deployment is recommended for reliable API access.
 
-Keep the existing Crossref and PubMed function files. After committing the files, Netlify should redeploy automatically.
+## Local preview
 
-## Local testing
-
-For the static interface:
+Because this is a static app, run any local static server, for example:
 
 ```bash
 python -m http.server 8080
 ```
 
-For Netlify Functions:
+Then open `http://localhost:8080`.
+
+To test Netlify Functions locally, use Netlify CLI:
 
 ```bash
 netlify dev
 ```
 
-Create a local `.env` file for development only:
+## Important MVP limitations
 
-```text
-OPENAI_API_KEY=your_key
-OPENAI_MODEL=gpt-5.6-luna
-```
+- Formatting is currently optimized for journal articles.
+- Vancouver and APA are implemented in-app rather than through a full CSL engine.
+- Projects are stored in the current browser only; Supabase sync is a later integration step.
+- Export is HTML. DOCX export should be added during integration with the main research app.
+- Full reference editing, RIS/BibTeX import, and collaborative projects are planned for the next stage.
 
-Do not commit `.env` to GitHub.
+## Recommended integration stage
 
-## Current limitations
+After user testing, integrate the module into the existing app with:
 
-- AI recommendations are candidate-screening suggestions, not confirmation that an article supports every word of a claim.
-- Vancouver and APA formatting are implemented in-app rather than through a full CSL engine.
-- Projects are stored in the current browser only.
-- Export is HTML; DOCX integration remains a later stage.
-- Citation tokens remain visible inside the plain-text editor and are rendered as formatted citations in Preview and Export.
+- Supabase `project_references` and `citation_instances` tables
+- User authentication and multi-device sync
+- Full CSL/citeproc engine
+- DOCX export with real Word citation fields or stable rendered citations
+- Zotero/RIS/BibTeX/NBIB import
+- Reference metadata verification workflow

@@ -18,6 +18,8 @@
     aiSelection: null,
     aiResult: null,
     aiSelected: new Map(),
+    aiProgressTimer: null,
+    aiProgressValue: 0,
   };
 
   const el = (id) => document.getElementById(id);
@@ -37,6 +39,8 @@
     aiAnalyzeBtn: el('aiAnalyzeBtn'), aiStatus: el('aiStatus'), aiResults: el('aiResults'),
     aiPolishedText: el('aiPolishedText'), aiClaims: el('aiClaims'), aiSelectedCount: el('aiSelectedCount'),
     aiApplyTextBtn: el('aiApplyTextBtn'), aiApplyCitationsBtn: el('aiApplyCitationsBtn'),
+    aiProgress: el('aiProgress'), aiProgressTrack: el('aiProgressTrack'), aiProgressBar: el('aiProgressBar'),
+    aiProgressLabel: el('aiProgressLabel'), aiProgressPercent: el('aiProgressPercent'),
   };
 
   function uid(prefix = 'ref') {
@@ -525,7 +529,76 @@
     els.aiApplyTextBtn.disabled = true;
     els.aiApplyCitationsBtn.disabled = true;
     els.aiSelectedCount.textContent = '0 sources selected';
+    resetAiProgress();
     els.aiCiteModal.classList.remove('hidden');
+  }
+
+  const AI_PROGRESS_STAGES = [
+    { key: 'prepare', min: 0, max: 14, label: 'Preparing the selected text…' },
+    { key: 'analyze', min: 14, max: 38, label: 'Improving wording and detecting citable claims…' },
+    { key: 'search', min: 38, max: 73, label: 'Searching PubMed and Crossref for real records…' },
+    { key: 'rank', min: 73, max: 93, label: 'Ranking evidence against each claim…' },
+    { key: 'finish', min: 93, max: 100, label: 'Finalizing citation suggestions…' },
+  ];
+
+  function getAiProgressStage(value) {
+    return AI_PROGRESS_STAGES.find((stage, index) => value < stage.max || index === AI_PROGRESS_STAGES.length - 1);
+  }
+
+  function updateAiProgress(value, label = '', stateClass = '') {
+    const safeRawValue = Math.max(0, Math.min(100, Number(value) || 0));
+    const safeValue = Math.round(safeRawValue);
+    state.aiProgressValue = safeRawValue;
+    const stage = getAiProgressStage(safeRawValue);
+    els.aiProgress.classList.remove('hidden', 'success', 'error');
+    if (stateClass) els.aiProgress.classList.add(stateClass);
+    els.aiProgressBar.style.width = `${safeValue}%`;
+    els.aiProgressPercent.textContent = `${safeValue}%`;
+    els.aiProgressLabel.textContent = label || stage.label;
+    els.aiProgressTrack.setAttribute('aria-valuenow', String(safeValue));
+    document.querySelectorAll('[data-ai-progress-step]').forEach(step => {
+      const stepStage = AI_PROGRESS_STAGES.find(item => item.key === step.dataset.aiProgressStep);
+      step.classList.toggle('active', stepStage?.key === stage.key);
+      step.classList.toggle('complete', safeValue >= (stepStage?.max || 101));
+    });
+  }
+
+  function startAiProgress() {
+    clearInterval(state.aiProgressTimer);
+    updateAiProgress(4);
+    state.aiProgressTimer = setInterval(() => {
+      const current = state.aiProgressValue;
+      let increment = 0.12;
+      if (current < 14) increment = 2.1;
+      else if (current < 38) increment = 1.25;
+      else if (current < 73) increment = 0.72;
+      else if (current < 93) increment = 0.32;
+      else if (current < 97) increment = 0.08;
+      updateAiProgress(Math.min(97, current + increment));
+    }, 420);
+  }
+
+  function finishAiProgress(success, message = '') {
+    clearInterval(state.aiProgressTimer);
+    state.aiProgressTimer = null;
+    if (success) {
+      updateAiProgress(100, message || 'Complete — sources are ready for review.', 'success');
+    } else {
+      updateAiProgress(state.aiProgressValue || 8, message || 'Analysis stopped before completion.', 'error');
+    }
+  }
+
+  function resetAiProgress() {
+    clearInterval(state.aiProgressTimer);
+    state.aiProgressTimer = null;
+    state.aiProgressValue = 0;
+    els.aiProgress.classList.add('hidden');
+    els.aiProgress.classList.remove('success', 'error');
+    els.aiProgressBar.style.width = '0%';
+    els.aiProgressPercent.textContent = '0%';
+    els.aiProgressLabel.textContent = 'Preparing analysis…';
+    els.aiProgressTrack.setAttribute('aria-valuenow', '0');
+    document.querySelectorAll('[data-ai-progress-step]').forEach(step => step.classList.remove('active', 'complete'));
   }
 
   function setAiBusy(active, message = '') {
@@ -538,6 +611,7 @@
     const text = els.aiOriginalText.value.trim();
     if (text.length < 20) return showToast('Select a complete scientific sentence or paragraph.');
     setAiBusy(true, 'OpenAI is identifying claims, then PubMed and Crossref are searched for real records…');
+    startAiProgress();
     els.aiResults.classList.add('hidden');
     try {
       const response = await fetch('/.netlify/functions/ai-citations', {
@@ -552,6 +626,7 @@
       }
       if (!data.polished_text || !Array.isArray(data.claims)) throw new Error('The AI response was incomplete.');
       state.aiResult = data;
+      finishAiProgress(true, 'Complete — claims and evidence are ready for review.');
       renderAiResults();
       els.aiStatus.textContent = `${data.claims.length} claim${data.claims.length === 1 ? '' : 's'} analyzed using ${data.model || 'OpenAI'}. Review the proposed sources before applying.`;
       els.aiResults.classList.remove('hidden');
@@ -559,6 +634,7 @@
     } catch (error) {
       console.error(error);
       const message = String(error.message || error);
+      finishAiProgress(false, 'Analysis stopped — review the error below and try again.');
       els.aiStatus.textContent = message.includes('OPENAI_API_KEY')
         ? 'OpenAI is not configured yet. Add OPENAI_API_KEY in Netlify → Site configuration → Environment variables, then redeploy.'
         : `AI citation search failed: ${message}`;

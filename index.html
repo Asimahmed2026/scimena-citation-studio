@@ -216,6 +216,25 @@
         </div>
 
         <button id="aiAnalyzeBtn" class="btn btn-primary btn-block">Analyze claims and search sources</button>
+
+        <div id="aiProgress" class="ai-progress hidden" aria-live="polite">
+          <div class="ai-progress-topline">
+            <span id="aiProgressLabel">Preparing analysis…</span>
+            <strong id="aiProgressPercent">0%</strong>
+          </div>
+          <div id="aiProgressTrack" class="ai-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="aiProgressLabel">
+            <div id="aiProgressBar" class="ai-progress-bar"></div>
+          </div>
+          <div class="ai-progress-steps" aria-hidden="true">
+            <span data-ai-progress-step="prepare">Prepare</span>
+            <span data-ai-progress-step="analyze">Analyze claims</span>
+            <span data-ai-progress-step="search">Search sources</span>
+            <span data-ai-progress-step="rank">Rank evidence</span>
+            <span data-ai-progress-step="finish">Finish</span>
+          </div>
+          <small>Progress is estimated while OpenAI, PubMed, and Crossref respond.</small>
+        </div>
+
         <div id="aiStatus" class="message muted">Select a sentence or paragraph in the editor, then analyze it.</div>
 
         <section id="aiResults" class="ai-results hidden">
